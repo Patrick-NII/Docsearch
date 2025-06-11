@@ -1,0 +1,21 @@
+# Ignorer les dossiers temporaires et sensibles
+vector_db/
+__pycache__/
+.DS_Store
+.env
+api/
+*.pyc
+*.pyo
+*.pyd
+# Ignorer les logs
+*.log
+# Ignorer les fichiers Streamlit
+.streamlit/
+# Ignorer les fichiers système
+Thumbs.db
+# Ignorer les modèles téléchargés
+models/
+# Ignorer les fichiers de données
+source/
+*.pdf
+*.txt 
