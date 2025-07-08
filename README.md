@@ -1,147 +1,113 @@
-# 📚 DocSearch - Assistant IA de Lecture de Document
+# DocSearch – Assistant IA de Lecture de Documents
 
-Un assistant intelligent capable de répondre à des questions sur des documents PDF ou texte en utilisant l'IA générative et la recherche sémantique.
+Un assistant intelligent capable de répondre à des questions sur des documents PDF ou texte en utilisant l’intelligence artificielle générative et la recherche sémantique (RAG).
 
-## 🎯 Objectif
+## Objectif
 
-Ce projet permet de créer un assistant IA qui peut analyser des documents longs (rapports, articles, livres) et répondre à des questions spécifiques en citant les passages pertinents, comme si l'IA avait lu le document pour vous.
+Ce projet vise à construire un agent IA accessible via une API qui permet d’interroger le contenu d’un document en langage naturel, comme si l’IA avait réellement lu le fichier. Il répond avec pertinence et citations, et garde le contexte conversationnel.
 
-## ✨ Fonctionnalités
+## Fonctionnalités
 
-- 📄 **Support multi-format** : PDF et fichiers texte (.txt)
-- 🔍 **Recherche sémantique** : Compréhension du contexte et du sens
-- 💬 **Interface conversationnelle** : Posez plusieurs questions de suite
-- 🧠 **Mémoire conversationnelle** : L'IA garde le contexte des échanges
-- 📍 **Citations sourcées** : Réponses avec références aux pages/paragraphes
-- 🚀 **100% local** : Fonctionne sans quota API externe (Ollama + SentenceTransformers)
-- 🎨 **Interface web moderne** : Interface Streamlit intuitive
+- Analyse de fichiers PDF
+- Envoi de documents via une interface Swagger (FastAPI)
+- Chat avec le document via une API POST `/chat`
+- Mémoire conversationnelle pour le contexte
+- Recherche sémantique (via FAISS et embeddings OpenAI)
+- Hébergement cloud avec Docker + EC2
+- Architecture extensible (prévue pour intégrer une interface web ou mobile)
 
-## 🏗️ Architecture
+## Architecture technique
 
 ```
-DocSearch/
-├── document_loader.py    # Extraction texte PDF/TXT
-├── text_splitter.py      # Découpage en chunks
-├── vector_store.py       # Indexation vectorielle (ChromaDB)
-├── rag_chain.py          # Chaîne RAG (Retrieval + Génération)
-├── qa_interface.py       # Interface utilisateur Streamlit
-├── config.py            # Configuration et variables d'environnement
-├── run.py               # Point d'entrée de l'application
-├── requirements.txt     # Dépendances Python
-└── README.md           # Documentation
+ai_doc_chatbot_api/
+├── main.py                 # API FastAPI
+├── Dockerfile              # Image Docker de l'app
+├── docker-compose.yml      # Orchestration du conteneur
+├── requirements.txt        # Dépendances
+├── .env                    # Variables d'environnement (clé API OpenAI)
+└── static/                 # Fichiers HTML statiques (upload simple)
 ```
 
-## 🚀 Installation
+## Déploiement sur AWS EC2 avec Docker
+
+### Étapes réalisées
+
+1. Création d'une instance EC2 sous Ubuntu avec ports ouverts pour SSH (22) et HTTP (8000)
+2. Installation de Docker & docker-compose
+3. Transfert du projet via SCP depuis le Mac local (avec clé PEM)
+4. Création d’une image Docker avec :
+   ```bash
+   docker-compose up --build -d
+   ```
+5. Mise à jour des permissions et debug réseau (groupes de sécurité)
+6. Test de l’API sur `http://<ec2>:8000/docs`
+
+## Problèmes rencontrés et résolution
+
+| Problème                        | Solution                                                             |
+|--------------------------------|----------------------------------------------------------------------|
+| `pypdf not found`              | Ajout de `pypdf` dans `requirements.txt`                            |
+| `tiktoken not found`           | Nécessaire pour `OpenAIEmbeddings` – Ajouté à `requirements.txt`    |
+| `Invalid OpenAI API key`       | Mauvais chargement de `.env`, corrigé via `os.environ` dans `main`  |
+| Swagger UI inaccessible        | Port 8000 non exposé dans les règles de sécurité AWS – corrigé      |
+| Clé PEM inaccessible ou perdue | Génération d'une nouvelle paire, mise à jour dans EC2               |
+| Ancienne version de l’app      | Suppression manuelle de l’ancien dossier avant re-déploiement       |
+| Fichier ZIP mal structuré      | Correction du chemin `ai_doc_chatbot_api 2/`                         |
+
+## Installation locale (optionnel)
 
 ### Prérequis
+
 - Python 3.8+
-- Ollama (pour le modèle local)
+- virtualenv ou conda
 
-### 1. Cloner le projet
 ```bash
-git clone https://github.com/Patrick-NII/Docsearch.git
-cd Docsearch
-```
-
-### 2. Installer les dépendances
-```bash
+git clone https://github.com/Patrick-NII/DocSearch.git
+cd ai_doc_chatbot_api
 pip install -r requirements.txt
+python main.py
 ```
 
-### 3. Installer Ollama
+API disponible sur `http://localhost:8000/docs`
+
+## Utilisation via Swagger UI
+
+1. Accéder à `/docs`  
+2. Envoyer un PDF via l’endpoint `POST /upload/`  
+3. Poser une question via `POST /chat/`
+
+## Exemple
+
 ```bash
-# macOS
-curl -fsSL https://ollama.com/install.sh | sh
-
-# Ou télécharger depuis https://ollama.com/download
+POST /upload/ → dojo_week11.pdf
+POST /chat/  → "Quels sont les objectifs de la semaine 11 ?"
 ```
 
-### 4. Télécharger un modèle Ollama
-```bash
-ollama pull llama2
+Réponse :
+
+```json
+{
+  "answer": "Les objectifs de la semaine 11 sont...",
+  "source_documents": [
+    "dojo_week11.pdf - page 2"
+  ]
+}
 ```
 
-## 🎮 Utilisation
+## Conclusion et perspectives
 
-### 1. Lancer l'application
-```bash
-python run.py
-```
+Ce projet constitue une base solide pour un assistant documentaire IA :
 
-### 2. Accéder à l'interface
-Ouvrez votre navigateur sur : `http://localhost:8501`
+- API fonctionnelle
+- Déploiement cloud automatisé
+- Support des erreurs courantes
+- Code prêt à intégrer une interface frontend (Web ou mobile)
 
-### 3. Poser des questions
-- Placez vos documents PDF ou TXT dans le dossier `source/`
-- Posez vos questions en langage naturel
-- L'IA répondra en citant les passages pertinents
+### Pistes d’amélioration
 
-## 🔧 Configuration
+- Gestion multi-documents
+- Vector store persistante
+- Authentification API
+- Interface de chat en temps réel
+- Export des conversations
 
-### Variables d'environnement (.env)
-```env
-OPENAI_API_KEY=your_openai_key_here  # Optionnel (pour OpenAI)
-```
-
-### Modèles disponibles
-- **Ollama** : `llama2`, `mistral`, `codellama` (recommandé)
-- **HuggingFace** : Modèles locaux (optionnel)
-
-## 🧠 Concepts techniques
-
-### RAG (Retrieval-Augmented Generation)
-1. **Extraction** : Le document est découpé en chunks
-2. **Indexation** : Chaque chunk est transformé en vecteur sémantique
-3. **Recherche** : Pour une question, on trouve les chunks les plus pertinents
-4. **Génération** : Le LLM génère une réponse basée sur ces chunks
-
-### Embeddings
-- **Modèle** : `all-MiniLM-L6-v2` (SentenceTransformers)
-- **Dimension** : 384
-- **Base vectorielle** : ChromaDB (locale)
-
-## 📊 Exemple d'utilisation
-
-```
-Question : "De quoi parle ce document ?"
-
-Réponse : Ce document est intitulé "ACQUISITION.COM VOLUME I: 100M OFFERS" 
-par Alex Hormozi. Il traite de la création d'offres commerciales si 
-attractives que les clients ont l'impression d'être stupides de dire non.
-
-Sources :
-- Page 3 : Titre principal du document
-- Page 5 : Informations sur l'auteur et le copyright
-```
-
-## 🎯 Critères de validation
-
-✅ **Réponses cohérentes** : L'IA répond de façon pertinente à plusieurs questions  
-✅ **Citations sourcées** : Indication des pages/paragraphes concernés  
-✅ **Code propre** : Architecture modulaire et bien structurée  
-✅ **Mémoire conversationnelle** : Conservation du contexte entre questions  
-✅ **Interface utilisateur** : Interface web intuitive avec Streamlit  
-
-## 🚀 Pistes d'amélioration
-
-- [ ] Support de plusieurs documents simultanés
-- [ ] Recherche plein texte (keyword matching)
-- [ ] API REST avec FastAPI
-- [ ] Interface de chat en temps réel
-- [ ] Export des conversations
-- [ ] Support de formats supplémentaires (DOCX, EPUB)
-
-## 🤝 Contribution
-
-Les contributions sont les bienvenues ! N'hésitez pas à :
-- Signaler des bugs
-- Proposer des améliorations
-- Ajouter de nouvelles fonctionnalités
-
-## 📄 Licence
-
-Ce projet est sous licence MIT. Voir le fichier `LICENSE` pour plus de détails.
-
----
-
-**Développé avec ❤️ pour simplifier la lecture de documents complexes** 
