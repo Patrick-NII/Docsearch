@@ -78,7 +78,7 @@ class AnalyticsService:
                     "email": user.email,
                     "is_admin": user.is_admin,
                     "created_at": user.created_at.isoformat(),
-                    "last_login": user.last_login.isoformat() if user.last_login else None
+                    "last_login": getattr(user, "last_login", None).isoformat() if getattr(user, "last_login", None) else None
                 },
                 "documents": {
                     "total": documents_count,
