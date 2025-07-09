@@ -133,7 +133,7 @@ export const Dashboard: React.FC = () => {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Documents</p>
               <p className="text-2xl font-semibold text-gray-900">
-                {formatNumber(dashboardData.user_stats.documents.total)}
+                {formatNumber(dashboardData?.user_stats?.documents?.total ?? 0)}
               </p>
             </div>
           </div>
@@ -151,7 +151,7 @@ export const Dashboard: React.FC = () => {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Questions</p>
               <p className="text-2xl font-semibold text-gray-900">
-                {formatNumber(dashboardData.user_stats.questions.total)}
+                {formatNumber(dashboardData?.user_stats?.questions?.total ?? 0)}
               </p>
             </div>
           </div>
@@ -169,7 +169,7 @@ export const Dashboard: React.FC = () => {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Sessions</p>
               <p className="text-2xl font-semibold text-gray-900">
-                {formatNumber(dashboardData.user_stats.sessions.total)}
+                {formatNumber(dashboardData?.user_stats?.sessions?.total ?? 0)}
               </p>
             </div>
           </div>
@@ -187,7 +187,7 @@ export const Dashboard: React.FC = () => {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Activité (7j)</p>
               <p className="text-2xl font-semibold text-gray-900">
-                {formatNumber(dashboardData.user_stats.questions.recent_7_days)}
+                {formatNumber(dashboardData?.user_stats?.questions?.recent_7_days ?? 0)}
               </p>
             </div>
           </div>
@@ -228,11 +228,11 @@ export const Dashboard: React.FC = () => {
       )}
 
       {/* Types de documents */}
-      {dashboardData.user_stats.documents.types.length > 0 && (
+      {(dashboardData?.user_stats?.documents?.types?.length ?? 0) > 0 && (
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-lg font-medium text-gray-900 mb-4">Types de documents</h2>
           <div className="space-y-3">
-            {dashboardData.user_stats.documents.types.map((docType: any, index: number) => (
+            {dashboardData?.user_stats?.documents?.types?.map?.((docType: any, index: number) => (
               <div key={index} className="flex items-center justify-between">
                 <div className="flex items-center">
                   <div className="w-3 h-3 bg-indigo-500 rounded-full mr-3"></div>
@@ -246,11 +246,11 @@ export const Dashboard: React.FC = () => {
       )}
 
       {/* Insights et recommandations */}
-      {dashboardData.user_insights.recommendations.length > 0 && (
+      {(dashboardData?.user_insights?.recommendations?.length ?? 0) > 0 && (
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-lg font-medium text-gray-900 mb-4">Recommandations</h2>
           <div className="space-y-3">
-            {dashboardData.user_insights.recommendations.map((recommendation: string, index: number) => (
+            {dashboardData?.user_insights?.recommendations?.map?.((recommendation: string, index: number) => (
               <div key={index} className="flex items-start">
                 <div className="flex-shrink-0">
                   <svg className="w-5 h-5 text-blue-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -270,19 +270,19 @@ export const Dashboard: React.FC = () => {
           <h2 className="text-lg font-medium text-gray-900 mb-4">Statistiques globales (Admin)</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="text-center">
-              <p className="text-2xl font-bold text-indigo-600">{formatNumber(dashboardData.global_stats.users.total)}</p>
+              <p className="text-2xl font-bold text-indigo-600">{formatNumber(dashboardData?.global_stats?.users?.total ?? 0)}</p>
               <p className="text-sm text-gray-600">Utilisateurs totaux</p>
             </div>
             <div className="text-center">
-              <p className="text-2xl font-bold text-green-600">{formatNumber(dashboardData.global_stats.documents.total)}</p>
+              <p className="text-2xl font-bold text-green-600">{formatNumber(dashboardData?.global_stats?.documents?.total ?? 0)}</p>
               <p className="text-sm text-gray-600">Documents totaux</p>
             </div>
             <div className="text-center">
-              <p className="text-2xl font-bold text-purple-600">{formatNumber(dashboardData.global_stats.questions.total)}</p>
+              <p className="text-2xl font-bold text-purple-600">{formatNumber(dashboardData?.global_stats?.questions?.total ?? 0)}</p>
               <p className="text-sm text-gray-600">Questions totales</p>
             </div>
             <div className="text-center">
-              <p className="text-2xl font-bold text-orange-600">{formatNumber(dashboardData.global_stats.users.new_30_days)}</p>
+              <p className="text-2xl font-bold text-orange-600">{formatNumber(dashboardData?.global_stats?.users?.new_30_days ?? 0)}</p>
               <p className="text-sm text-gray-600">Nouveaux (30j)</p>
             </div>
           </div>
