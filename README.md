@@ -103,13 +103,27 @@ L'application sera disponible sur :
 
 ## 🔐 Authentification
 
-### Créer un Compte Administrateur
+### Utilisateurs Pré-créés
+
+Le système inclut 5 utilisateurs pré-configurés :
+
+| Utilisateur | Email | Username | Mot de passe | Rôle |
+|-------------|-------|----------|--------------|------|
+| **Patrick NII** | patrick@docsearch.ai | patrick_admin | `MB2JyQhY8Kmd` | **Administrateur** |
+| Alice Martin | alice@docsearch.ai | alice_dev | `g$5rs@^iCP*M` | 👤 Utilisateur |
+| Bob Johnson | bob@docsearch.ai | bob_analyst | `gB6vG$1smJVV` | 👤 Utilisateur |
+| Carol Smith | carol@docsearch.ai | carol_researcher | `rQGcpWwg*6QD` | 👤 Utilisateur |
+| David Wilson | david@docsearch.ai | david_manager | `wJu%xMZ%hZmf` | 👤 Utilisateur |
+
+### Créer de Nouveaux Utilisateurs
 
 ```bash
+# Créer un utilisateur administrateur
 python create_admin.py
-```
 
-Suivez les instructions pour créer votre premier compte administrateur.
+# Créer plusieurs utilisateurs
+python create_initial_users.py
+```
 
 ### Endpoints d'Authentification
 
@@ -119,32 +133,44 @@ Suivez les instructions pour créer votre premier compte administrateur.
 - `PUT /auth/me` - Mise à jour du profil
 - `POST /auth/change-password` - Changement de mot de passe
 
+### Endpoints Administrateur
+
+- `GET /auth/users` - Liste de tous les utilisateurs
+- `PUT /auth/users/{user_id}/toggle-status` - Activer/désactiver un utilisateur
+- `PUT /auth/users/{user_id}/toggle-admin` - Donner/retirer les droits admin
+
 ### Utilisation avec l'API
 
 ```bash
-# 1. Inscription
-curl -X POST "http://localhost:8000/auth/register" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "user@example.com",
-    "username": "user123",
-    "password": "password123",
-    "full_name": "John Doe"
-  }'
-
-# 2. Connexion
+# 1. Connexion avec un utilisateur existant
 curl -X POST "http://localhost:8000/auth/login" \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "user@example.com",
-    "password": "password123"
+    "email": "patrick@docsearch.ai",
+    "password": "MB2JyQhY8Kmd"
   }'
 
-# 3. Utiliser le token pour les requêtes authentifiées
+# 2. Utiliser le token pour les requêtes authentifiées
 curl -X POST "http://localhost:8000/ask" \
   -H "Authorization: Bearer YOUR_TOKEN_HERE" \
   -H "Content-Type: application/json" \
   -d '{"question": "Votre question ici"}'
+
+# 3. Upload de documents (authentifié)
+curl -X POST "http://localhost:8000/upload" \
+  -H "Authorization: Bearer YOUR_TOKEN_HERE" \
+  -F "files=@document.pdf"
+
+# 4. Obtenir les statistiques utilisateur
+curl -X GET "http://localhost:8000/stats" \
+  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+```
+
+### Test de l'Intégration
+
+```bash
+# Tester l'intégration complète
+python test_auth_integration.py
 ```
 
 ## 📊 Fonctionnalités Avancées

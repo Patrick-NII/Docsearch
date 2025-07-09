@@ -7,11 +7,15 @@ import logging
 import os
 import base64
 from pathlib import Path
+from sqlalchemy.orm import Session
 
 from config import settings
 from document_loader import AdvancedDocumentLoader
 from vector_store import VectorStore
 from rag_chain import ModernRAGChain
+from models import get_db, User, Document, ChatHistory
+from auth import get_current_user, get_current_active_user, get_current_admin_user
+from auth_routes import router as auth_router
 
 # Configuration du logging
 logging.basicConfig(level=getattr(logging, settings.LOG_LEVEL))
@@ -20,8 +24,8 @@ logger = logging.getLogger(__name__)
 # Initialisation de l'application FastAPI
 app = FastAPI(
     title="DocSearch AI API",
-    description="API pour l'analyse de documents avec IA",
-    version="1.0.0"
+    description="API pour l'analyse de documents avec IA et authentification JWT",
+    version="2.0.0"
 )
 
 # Configuration CORS
@@ -33,13 +37,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Sécurité
-security = HTTPBearer()
+# Inclure les routes d'authentification
+app.include_router(auth_router)
+
+# Variables globales pour les instances
+document_loader = None
+vector_store = None
+rag_chain = None
 
 # Modèles Pydantic
 class QuestionRequest(BaseModel):
     question: str
-    user_id: Optional[str] = None
 
 class QuestionResponse(BaseModel):
     answer: str
@@ -64,6 +72,8 @@ class StatsResponse(BaseModel):
     vector_store_documents: Optional[int] = None
     available_documents: Optional[int] = None
     current_session_id: Optional[str] = None
+    user_documents_count: int
+    user_sessions_count: int
 
 class ChatHistoryResponse(BaseModel):
     history: List[Dict[str, str]]
@@ -75,21 +85,20 @@ class DocumentInfo(BaseModel):
     session_id: str
     upload_date: str
     chunks_count: int
+    user_id: Optional[int] = None
 
 class DocumentsListResponse(BaseModel):
     documents: List[DocumentInfo]
     total_count: int
 
-# Variables globales pour les instances
-document_loader = None
-vector_store = None
-rag_chain = None
-
-def get_token(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
-    """Vérifie le token d'authentification"""
-    if credentials.credentials != settings.API_TOKEN:
-        raise HTTPException(status_code=403, detail="Token invalide")
-    return credentials.credentials
+class UserStatsResponse(BaseModel):
+    user_id: int
+    username: str
+    email: str
+    documents_count: int
+    sessions_count: int
+    is_admin: bool
+    is_active: bool
 
 def init_services():
     """Initialise les services (document loader, vector store, RAG chain)"""
@@ -108,9 +117,6 @@ def init_services():
         rag_chain = ModernRAGChain(vector_store)
         logger.info("RAG chain initialisée")
         
-        # NOTE: Les documents du dossier source ne sont plus chargés automatiquement
-        # Ils doivent être chargés explicitement via l'endpoint /load-documents
-        
     except Exception as e:
         logger.error(f"Erreur lors de l'initialisation des services: {e}")
         raise
@@ -126,8 +132,9 @@ async def root():
     """Endpoint racine"""
     return {
         "message": "DocSearch AI API",
-        "version": "1.0.0",
-        "status": "running"
+        "version": "2.0.0",
+        "status": "running",
+        "features": ["JWT Authentication", "Multi-user support", "Document analysis", "RAG chat"]
     }
 
 @app.get("/health")
@@ -144,7 +151,8 @@ async def health_check():
         return {
             "status": "healthy",
             "services": services_status,
-            "openai_configured": bool(settings.OPENAI_API_KEY)
+            "openai_configured": bool(settings.OPENAI_API_KEY),
+            "auth_enabled": True
         }
     except Exception as e:
         logger.error(f"Erreur lors du health check: {e}")
@@ -153,9 +161,10 @@ async def health_check():
 @app.post("/upload", response_model=UploadResponse)
 async def upload_documents(
     files: List[UploadFile] = File(...),
-    token: str = Depends(get_token)
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
 ):
-    """Upload et traitement de documents"""
+    """Upload et traitement de documents (authentifié)"""
     try:
         if not document_loader or not rag_chain:
             raise HTTPException(status_code=500, detail="Services non initialisés")
@@ -190,41 +199,54 @@ async def upload_documents(
             # Traiter le document
             doc = document_loader.load_from_base64(base64_content, file.filename)
             if doc:
+                # Ajouter les métadonnées utilisateur
+                doc["metadata"]["user_id"] = current_user.id
+                doc["metadata"]["username"] = current_user.username
                 processed_documents.append(doc)
-                logger.info(f"Document traité: {file.filename}")
+                
+                # Enregistrer le document en base de données
+                db_document = Document(
+                    filename=file.filename,
+                    file_type=file_ext,
+                    file_size=file.size,
+                    session_id=session_id,
+                    user_id=current_user.id
+                )
+                db.add(db_document)
+                
+                logger.info(f"Document traité: {file.filename} (utilisateur: {current_user.username})")
         
         if processed_documents:
-            # Traiter les documents de manière synchrone pour éviter les problèmes de timing
+            # Traiter les documents de manière synchrone
             success = rag_chain.process_documents(processed_documents, session_id)
             if not success:
                 logger.error("Erreur lors du traitement des documents")
                 raise HTTPException(status_code=500, detail="Erreur lors du traitement des documents")
-            logger.info(f"Documents traités: {len(processed_documents)} (session: {session_id})")
-        
-        return UploadResponse(
-            message=f"{len(processed_documents)} documents traités avec succès",
-            documents_processed=len(processed_documents),
-            documents=[{
-                "filename": doc["metadata"]["filename"],
-                "file_type": doc["metadata"]["file_type"],
-                "file_size": doc["metadata"]["file_size"]
-            } for doc in processed_documents],
-            session_id=session_id
-        )
-        
+            
+            db.commit()
+            
+            return UploadResponse(
+                message=f"{len(processed_documents)} document(s) traité(s) avec succès",
+                documents_processed=len(processed_documents),
+                documents=[{"filename": doc["metadata"]["filename"], "type": doc["metadata"]["file_type"]} for doc in processed_documents],
+                session_id=session_id
+            )
+        else:
+            raise HTTPException(status_code=400, detail="Aucun document valide à traiter")
+            
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Erreur lors de l'upload: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur lors du traitement: {str(e)}")
+        raise HTTPException(status_code=500, detail="Erreur interne du serveur")
 
 async def process_documents_background(documents: List[Dict[str, Any]], session_id: str):
-    """Traitement des documents en arrière-plan"""
+    """Traitement asynchrone des documents (pour référence)"""
     try:
         if rag_chain:
             success = rag_chain.process_documents(documents, session_id)
             if success:
-                logger.info(f"Documents traités en arrière-plan: {len(documents)} (session: {session_id})")
+                logger.info(f"Documents traités en arrière-plan: {len(documents)}")
             else:
                 logger.error("Erreur lors du traitement en arrière-plan")
     except Exception as e:
@@ -233,164 +255,252 @@ async def process_documents_background(documents: List[Dict[str, Any]], session_
 @app.post("/ask", response_model=QuestionResponse)
 async def ask_question(
     request: QuestionRequest,
-    token: str = Depends(get_token)
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
 ):
-    """Pose une question à l'IA"""
+    """Poser une question (authentifié)"""
     try:
         if not rag_chain:
             raise HTTPException(status_code=500, detail="Service RAG non initialisé")
-        
-        if not request.question.strip():
-            raise HTTPException(status_code=400, detail="Question vide")
         
         # Obtenir la réponse
         result = rag_chain.ask_question(request.question)
         
-        return QuestionResponse(**result)
+        # Enregistrer l'historique en base de données
+        chat_entry = ChatHistory(
+            user_id=current_user.id,
+            question=request.question,
+            answer=result["answer"],
+            sources=str(result["sources"]),
+            session_id=rag_chain.current_session_id
+        )
+        db.add(chat_entry)
+        db.commit()
         
-    except HTTPException:
-        raise
+        logger.info(f"Question traitée pour {current_user.username}: {request.question[:50]}...")
+        
+        return QuestionResponse(
+            answer=result["answer"],
+            sources=result["sources"],
+            question=request.question,
+            mode=result["mode"],
+            context=result["context"]
+        )
+        
     except Exception as e:
         logger.error(f"Erreur lors du traitement de la question: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur lors du traitement: {str(e)}")
+        raise HTTPException(status_code=500, detail="Erreur interne du serveur")
 
 @app.get("/documents", response_model=DocumentsListResponse)
-async def get_available_documents(token: str = Depends(get_token)):
-    """Récupère la liste des documents disponibles"""
+async def get_available_documents(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Obtenir la liste des documents disponibles (authentifié)"""
     try:
         if not vector_store:
             raise HTTPException(status_code=500, detail="Vector store non initialisé")
         
-        documents = vector_store.get_available_documents()
+        # Obtenir les documents du vector store
+        vector_docs = vector_store.get_available_documents()
+        
+        # Filtrer par utilisateur (sauf pour les admins)
+        if not current_user.is_admin:
+            vector_docs = [doc for doc in vector_docs if doc.get("user_id") == current_user.id]
+        
+        # Obtenir les documents de la base de données
+        db_documents = db.query(Document).filter(Document.user_id == current_user.id).all()
+        
+        # Combiner les informations
+        documents = []
+        for doc in vector_docs:
+            documents.append(DocumentInfo(
+                filename=doc["filename"],
+                file_type=doc["file_type"],
+                source=doc["source"],
+                session_id=doc["session_id"],
+                upload_date=doc.get("upload_date", "N/A"),
+                chunks_count=doc["chunks_count"],
+                user_id=doc.get("user_id")
+            ))
         
         return DocumentsListResponse(
-            documents=[DocumentInfo(**doc) for doc in documents],
+            documents=documents,
             total_count=len(documents)
         )
         
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"Erreur lors de la récupération des documents: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur lors de la récupération: {str(e)}")
+        raise HTTPException(status_code=500, detail="Erreur interne du serveur")
 
 @app.get("/history", response_model=ChatHistoryResponse)
-async def get_chat_history(token: str = Depends(get_token)):
-    """Récupère l'historique de conversation"""
+async def get_chat_history(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Obtenir l'historique de conversation (authentifié)"""
     try:
-        if not rag_chain:
-            raise HTTPException(status_code=500, detail="Service RAG non initialisé")
+        # Obtenir l'historique de la base de données
+        db_history = db.query(ChatHistory).filter(
+            ChatHistory.user_id == current_user.id
+        ).order_by(ChatHistory.created_at.desc()).limit(50).all()
         
-        history = rag_chain.get_chat_history()
+        # Formater l'historique
+        history = []
+        for entry in reversed(db_history):  # Inverser pour avoir l'ordre chronologique
+            history.append({
+                "question": entry.question,
+                "answer": entry.answer,
+                "timestamp": entry.created_at.isoformat(),
+                "session_id": entry.session_id
+            })
+        
         return ChatHistoryResponse(history=history)
         
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"Erreur lors de la récupération de l'historique: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur lors de la récupération: {str(e)}")
+        raise HTTPException(status_code=500, detail="Erreur interne du serveur")
 
 @app.delete("/history")
-async def clear_chat_history(token: str = Depends(get_token)):
-    """Efface l'historique de conversation"""
+async def clear_chat_history(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Effacer l'historique de conversation (authentifié)"""
     try:
-        if not rag_chain:
-            raise HTTPException(status_code=500, detail="Service RAG non initialisé")
+        # Effacer l'historique de la base de données
+        db.query(ChatHistory).filter(ChatHistory.user_id == current_user.id).delete()
+        db.commit()
         
-        rag_chain.clear_memory()
+        # Effacer la mémoire de la chaîne RAG
+        if rag_chain:
+            rag_chain.clear_memory()
+        
+        logger.info(f"Historique effacé pour {current_user.username}")
         return {"message": "Historique effacé avec succès"}
         
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"Erreur lors de l'effacement de l'historique: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur lors de l'effacement: {str(e)}")
+        raise HTTPException(status_code=500, detail="Erreur interne du serveur")
 
 @app.delete("/session")
-async def clear_current_session(token: str = Depends(get_token)):
-    """Efface la session actuelle (documents uploadés récemment)"""
+async def clear_current_session(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Effacer la session actuelle (authentifié)"""
     try:
         if not rag_chain:
             raise HTTPException(status_code=500, detail="Service RAG non initialisé")
         
-        rag_chain.clear_current_session()
-        return {"message": "Session actuelle effacée avec succès"}
+        # Effacer la session du vector store
+        if rag_chain.current_session_id:
+            vector_store.clear_current_session()
+            rag_chain.clear_current_session()
         
-    except HTTPException:
-        raise
+        # Effacer les documents de la session en base de données
+        if rag_chain.current_session_id:
+            db.query(Document).filter(
+                Document.session_id == rag_chain.current_session_id,
+                Document.user_id == current_user.id
+            ).delete()
+            db.commit()
+        
+        logger.info(f"Session effacée pour {current_user.username}")
+        return {"message": "Session effacée avec succès"}
+        
     except Exception as e:
         logger.error(f"Erreur lors de l'effacement de la session: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur lors de l'effacement: {str(e)}")
+        raise HTTPException(status_code=500, detail="Erreur interne du serveur")
 
 @app.get("/stats", response_model=StatsResponse)
-async def get_stats(token: str = Depends(get_token)):
-    """Récupère les statistiques du système"""
+async def get_stats(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Obtenir les statistiques (authentifié)"""
     try:
         if not rag_chain:
             raise HTTPException(status_code=500, detail="Service RAG non initialisé")
         
+        # Statistiques de base
         stats = rag_chain.get_stats()
+        
+        # Statistiques utilisateur
+        user_documents_count = db.query(Document).filter(Document.user_id == current_user.id).count()
+        user_sessions_count = db.query(Document.session_id).filter(
+            Document.user_id == current_user.id
+        ).distinct().count()
+        
+        stats["user_documents_count"] = user_documents_count
+        stats["user_sessions_count"] = user_sessions_count
+        
         return StatsResponse(**stats)
         
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"Erreur lors de la récupération des stats: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur lors de la récupération: {str(e)}")
+        raise HTTPException(status_code=500, detail="Erreur interne du serveur")
 
 @app.delete("/clear-all")
-async def clear_all_documents(token: str = Depends(get_token)):
-    """Efface tous les documents de la base vectorielle"""
+async def clear_all_documents(
+    current_user: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Effacer tous les documents (admin uniquement)"""
     try:
         if not vector_store:
             raise HTTPException(status_code=500, detail="Vector store non initialisé")
         
-        # Effacer la collection complète
-        vector_store.clear_collection()
+        # Effacer tous les documents du vector store
+        vector_store.clear_all_documents()
         
-        # Réinitialiser la session RAG
+        # Effacer tous les documents de la base de données
+        db.query(Document).delete()
+        db.query(ChatHistory).delete()
+        db.commit()
+        
+        # Effacer la mémoire de la chaîne RAG
         if rag_chain:
-            rag_chain.current_session_id = None
+            rag_chain.clear_memory()
         
-        return {"message": "Tous les documents ont été supprimés de la base vectorielle"}
+        logger.info(f"Tous les documents effacés par {current_user.username}")
+        return {"message": "Tous les documents effacés avec succès"}
         
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"Erreur lors de l'effacement de tous les documents: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur lors de l'effacement: {str(e)}")
+        raise HTTPException(status_code=500, detail="Erreur interne du serveur")
 
-@app.post("/load-documents")
-async def load_existing_documents(token: str = Depends(get_token)):
-    """Charge les documents existants du répertoire source"""
+@app.get("/users/stats", response_model=List[UserStatsResponse])
+async def get_users_stats(
+    current_user: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Obtenir les statistiques de tous les utilisateurs (admin uniquement)"""
     try:
-        if not document_loader or not rag_chain:
-            raise HTTPException(status_code=500, detail="Services non initialisés")
+        users = db.query(User).all()
+        stats = []
         
-        # Charger les documents du répertoire source
-        documents = document_loader.load_documents()
+        for user in users:
+            documents_count = db.query(Document).filter(Document.user_id == user.id).count()
+            sessions_count = db.query(Document.session_id).filter(
+                Document.user_id == user.id
+            ).distinct().count()
+            
+            stats.append(UserStatsResponse(
+                user_id=user.id,
+                username=user.username,
+                email=user.email,
+                documents_count=documents_count,
+                sessions_count=sessions_count,
+                is_admin=user.is_admin,
+                is_active=user.is_active
+            ))
         
-        if documents:
-            # Traiter les documents (sans session = documents permanents)
-            success = rag_chain.process_documents(documents)
-            if success:
-                return {
-                    "message": f"{len(documents)} documents chargés avec succès",
-                    "documents_loaded": len(documents)
-                }
-            else:
-                raise HTTPException(status_code=500, detail="Erreur lors du traitement des documents")
-        else:
-            return {
-                "message": "Aucun document trouvé dans le répertoire source",
-                "documents_loaded": 0
-            }
+        return stats
         
-    except HTTPException:
-        raise
     except Exception as e:
-        logger.error(f"Erreur lors du chargement des documents: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur lors du chargement: {str(e)}")
+        logger.error(f"Erreur lors de la récupération des stats utilisateurs: {e}")
+        raise HTTPException(status_code=500, detail="Erreur interne du serveur")
 
 if __name__ == "__main__":
     import uvicorn
