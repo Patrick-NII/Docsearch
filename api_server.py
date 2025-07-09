@@ -16,6 +16,7 @@ from rag_chain import ModernRAGChain
 from models import get_db, User, Document, ChatHistory
 from auth import get_current_user, get_current_active_user, get_current_admin_user
 from auth_routes import router as auth_router
+from analytics_routes import router as analytics_router
 
 # Configuration du logging
 logging.basicConfig(level=getattr(logging, settings.LOG_LEVEL))
@@ -39,6 +40,9 @@ app.add_middleware(
 
 # Inclure les routes d'authentification
 app.include_router(auth_router)
+
+# Inclure les routes d'analytics
+app.include_router(analytics_router)
 
 # Variables globales pour les instances
 document_loader = None

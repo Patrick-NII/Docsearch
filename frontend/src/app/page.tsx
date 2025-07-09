@@ -6,6 +6,7 @@ import { LoginForm } from '../components/LoginForm';
 import { RegisterForm } from '../components/RegisterForm';
 import { UserProfile } from '../components/UserProfile';
 import { ProtectedRoute } from '../components/ProtectedRoute';
+import { Dashboard } from '../components/Dashboard';
 import axios from 'axios';
 
 interface ConversationEntry {
@@ -20,6 +21,7 @@ interface ConversationEntry {
 export default function Home() {
   const { user, isAuthenticated, isLoading } = useAuth();
   const [showRegister, setShowRegister] = useState(false);
+  const [currentView, setCurrentView] = useState<'chat' | 'dashboard'>('chat');
   const [file, setFile] = useState<File | null>(null);
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState('');
@@ -237,15 +239,37 @@ export default function Home() {
         <header className="bg-white shadow-sm border-b border-gray-200">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center h-16">
-              <div className="flex items-center">
+              <div className="flex items-center space-x-8">
                 <h1 className="text-xl font-semibold text-gray-900">
                   DocSearch AI
                 </h1>
                 {user?.is_admin && (
-                  <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
                     Admin
                   </span>
                 )}
+                <nav className="flex space-x-4">
+                  <button
+                    onClick={() => setCurrentView('chat')}
+                    className={`px-3 py-2 rounded-md text-sm font-medium ${
+                      currentView === 'chat'
+                        ? 'bg-indigo-100 text-indigo-700'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    Chat IA
+                  </button>
+                  <button
+                    onClick={() => setCurrentView('dashboard')}
+                    className={`px-3 py-2 rounded-md text-sm font-medium ${
+                      currentView === 'dashboard'
+                        ? 'bg-indigo-100 text-indigo-700'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    Tableau de bord
+                  </button>
+                </nav>
               </div>
               <UserProfile />
             </div>
@@ -254,7 +278,10 @@ export default function Home() {
 
         {/* Main Content */}
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {currentView === 'dashboard' ? (
+            <Dashboard />
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Sidebar */}
             <div className="lg:col-span-1">
               <div className="bg-white rounded-lg shadow p-6">
@@ -454,6 +481,7 @@ export default function Home() {
               </div>
             </div>
           </div>
+          )}
         </main>
       </div>
     </ProtectedRoute>
