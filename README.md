@@ -34,9 +34,60 @@ Ce projet vise à construire un agent IA accessible via une API qui permet d'int
 ### 🏗️ Architecture Technique
 - **Backend FastAPI** avec authentification JWT
 - **Base de données SQLite** avec SQLAlchemy
-- **Frontend Next.js** avec interface moderne
+- **Frontend Next.js** avec interface moderne et minimaliste
 - **Vector Store ChromaDB** pour la recherche sémantique
 - **Déploiement Docker** prêt pour la production
+
+## 🎨 Design System
+
+### Style Minimaliste
+L'interface utilisateur suit un design minimaliste inspiré de Notion, Linear et ChatGPT :
+
+- **Palette de couleurs sobres** : fonds blancs/clairs, texte gris/noir, accents bleus
+- **Typographie moderne** : police Inter, tailles sobres, hiérarchie claire
+- **Icônes discrètes** : petites icônes grises (18-20px), alignement parfait
+- **Bordures subtiles** : border-radius 6-8px, ombres légères
+- **Animations discrètes** : transitions douces, feedback visuel minimal
+- **Layout aéré** : paddings généreux, espacement cohérent
+
+### Composants UI
+- **Button** : variantes primary/secondary/ghost/danger, tailles sm/md/lg
+- **Input** : focus bleu, états d'erreur, support d'icônes
+- **Avatar** : types user/ai/default, tailles adaptatives
+- **GlassPanel** : remplacé par des cards simples avec fonds clairs
+- **ChatContainer** : interface de chat épurée, messages bien structurés
+- **Sidebar** : navigation claire, gestion des documents
+
+### Responsive Design
+- **Mobile-first** : adaptation automatique sur tous les écrans
+- **Breakpoints** : sm (640px), md (768px), lg (1024px), xl (1280px)
+- **Navigation** : sidebar collapsible sur mobile
+
+## 📝 Changelog
+
+### Version 2.0 - Refonte UI/UX Minimaliste (Décembre 2024)
+- **🎨 Refonte complète du design** : passage d'un style glassmorphism/futuriste à un design minimaliste inspiré de Notion/Linear/ChatGPT
+- **🎯 Suppression des effets visuels** : suppression des gradients, glassmorphism, animations complexes
+- **📱 Interface épurée** : fonds blancs/clairs, texte noir/gris, icônes discrètes, bordures sobres
+- **🔧 Composants refactorisés** : Button, Input, Avatar, ChatContainer, Sidebar, GlassPanel
+- **📄 Pages adaptées** : landing page, login/register, layout principal
+- **⚡ Performance améliorée** : suppression des animations lourdes, chargement plus rapide
+- **📱 Responsive optimisé** : meilleure adaptation mobile, navigation simplifiée
+
+### Version 1.5 - Gestion Avancée des Documents (Novembre 2024)
+- **📚 Versioning des documents** : historique des versions, comparaison, restauration
+- **🏷️ Système de tags** : organisation et catégorisation des documents
+- **✏️ Annotations** : notes et commentaires sur les documents
+- **🔗 Partage de documents** : liens temporaires avec permissions
+- **📊 Collections** : organisation en dossiers thématiques
+- **📈 Analytics avancés** : statistiques détaillées par fonctionnalité
+
+### Version 1.0 - Fonctionnalités de Base (Octobre 2024)
+- **🔐 Authentification JWT** avec gestion multi-utilisateur
+- **📄 Upload et analyse** de documents multi-formats
+- **💬 Chat intelligent** avec mémoire conversationnelle
+- **🔍 Recherche sémantique** via ChromaDB et OpenAI
+- **📊 Dashboard analytics** pour le suivi des performances
 
 ## 🚀 Installation et Configuration
 

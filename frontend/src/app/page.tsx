@@ -1,44 +1,71 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Layout } from '../components/Layout';
-import { ChatInterface } from '../components/ChatInterface';
-import { DocumentManager } from '../components/DocumentManager';
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '../components/AuthContext';
+import MainLayout from '../components/layout/MainLayout';
+import Hero from '../components/landing/Hero';
 
 export default function HomePage() {
-  const [selectedDocument, setSelectedDocument] = useState<string>('');
-  const [showDocuments, setShowDocuments] = useState(false);
+  const { user, isAuthenticated, isLoading } = useAuth();
+  const [messages, setMessages] = useState<any[]>([]);
+  const [documents, setDocuments] = useState<any[]>([]);
+  const [selectedDocumentId, setSelectedDocumentId] = useState<string>('');
+  const [loading, setLoading] = useState(false);
 
-  return (
-    <Layout>
-      <div className="flex h-screen">
-        {/* Document Manager Sidebar */}
-        <div className={`w-80 border-r border-border-light transition-all duration-300 ${
-          showDocuments ? 'translate-x-0' : '-translate-x-full'
-        } lg:translate-x-0 lg:static lg:inset-0`}>
-          <div className="h-full overflow-y-auto">
-            <DocumentManager
-              onDocumentSelect={setSelectedDocument}
-              selectedDocument={selectedDocument}
-            />
-          </div>
-        </div>
+  // Mock data for demonstration
+  useEffect(() => {
+    if (isAuthenticated) {
+      // Simulate loading documents
+      setDocuments([
+        { id: '1', name: 'Contrat.pdf', type: 'PDF', size: '1.2MB', uploaded_at: '2024-07-09' },
+        { id: '2', name: 'Rapport.docx', type: 'DOCX', size: '800KB', uploaded_at: '2024-07-08' },
+      ]);
+      setMessages([
+        { id: '1', content: 'Bonjour, que puis-je faire pour vous ?', role: 'assistant', timestamp: '09:00' },
+      ]);
+    }
+  }, [isAuthenticated]);
 
-        {/* Chat Interface */}
-        <div className="flex-1 flex flex-col">
-          <ChatInterface selectedDocument={selectedDocument} />
-        </div>
-
-        {/* Mobile Toggle */}
-        <button
-          onClick={() => setShowDocuments(!showDocuments)}
-          className="lg:hidden fixed bottom-6 right-6 z-50 w-14 h-14 bg-gradient-primary rounded-full flex items-center justify-center shadow-lg hover:shadow-glow transition-all"
-        >
-          <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-        </button>
+  // Show loading while checking authentication
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="text-gray-900 text-lg">Chargement...</div>
       </div>
-    </Layout>
+    );
+  }
+
+  if (!isAuthenticated) {
+    // Landing page
+    return <Hero />;
+  }
+
+  // Main app
+  return (
+    <MainLayout
+      documents={documents}
+      messages={messages}
+      onSendMessage={(msg) => {
+        setLoading(true);
+        setTimeout(() => {
+          setMessages((prev) => [
+            ...prev,
+            { id: String(prev.length + 1), content: msg, role: 'user', timestamp: '09:01' },
+            { id: String(prev.length + 2), content: 'Réponse IA simulée.', role: 'assistant', timestamp: '09:01' },
+          ]);
+          setLoading(false);
+        }, 800);
+      }}
+      onDocumentSelect={setSelectedDocumentId}
+      onUploadDocument={() => {
+        console.log('Upload document');
+      }}
+      onDeleteDocument={(docId) => {
+        setDocuments(prev => prev.filter(doc => doc.id !== docId));
+      }}
+      selectedDocumentId={selectedDocumentId}
+      user={user}
+      loading={loading}
+    />
   );
 }
