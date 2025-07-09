@@ -44,6 +44,12 @@ class Document(Base):
     
     # Relations
     owner = relationship("User", back_populates="documents")
+    versions = relationship("DocumentVersion", back_populates="document", cascade="all, delete-orphan")
+    annotations = relationship("DocumentAnnotation", back_populates="document", cascade="all, delete-orphan")
+    shares = relationship("DocumentShare", back_populates="document", cascade="all, delete-orphan")
+    
+    # Relation many-to-many avec les tags
+    tags = relationship("DocumentTag", secondary="document_tags_association", back_populates="documents")
 
 class UserSession(Base):
     """Modèle session utilisateur"""
@@ -73,6 +79,91 @@ class ChatHistory(Base):
     
     # Relations
     user = relationship("User", back_populates="chat_history")
+
+# Modèles pour le versioning, annotations et partage
+
+class DocumentVersion(Base):
+    """Modèle version de document"""
+    __tablename__ = "document_versions"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    document_id = Column(Integer, ForeignKey("documents.id"), nullable=False)
+    version_number = Column(Integer, nullable=False)
+    filename = Column(String, nullable=False)
+    file_type = Column(String, nullable=False)
+    file_hash = Column(String, nullable=False)  # Hash SHA-256
+    file_size = Column(Integer, nullable=False)
+    uploaded_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    metadata_json = Column(Text, nullable=True)  # JSON string
+    created_at = Column(DateTime, default=datetime.utcnow)
+    deleted_at = Column(DateTime, nullable=True)
+    deleted_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    
+    # Relations
+    document = relationship("Document", back_populates="versions")
+    uploader = relationship("User", foreign_keys=[uploaded_by])  # Utilisateur ayant uploadé la version
+    deleted_by_user = relationship("User", foreign_keys=[deleted_by])  # Utilisateur ayant supprimé la version
+
+class DocumentAnnotation(Base):
+    """Modèle annotation de document"""
+    __tablename__ = "document_annotations"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    document_id = Column(Integer, ForeignKey("documents.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    content = Column(Text, nullable=False)
+    annotation_type = Column(String, default="note")  # note, highlight, comment
+    position = Column(Text, nullable=True)  # JSON string pour position
+    metadata_json = Column(Text, nullable=True)  # JSON string
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relations
+    document = relationship("Document", back_populates="annotations")
+    user = relationship("User")
+
+class DocumentTag(Base):
+    """Modèle tag de document"""
+    __tablename__ = "document_tags"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, unique=True, nullable=False)
+    color = Column(String, default="#3B82F6")  # Couleur hexadécimale
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relations
+    documents = relationship("Document", secondary="document_tags_association", back_populates="tags")
+
+# Table d'association pour les tags
+class DocumentTagAssociation(Base):
+    """Table d'association document-tag"""
+    __tablename__ = "document_tags_association"
+    
+    document_id = Column(Integer, ForeignKey("documents.id"), primary_key=True)
+    tag_id = Column(Integer, ForeignKey("document_tags.id"), primary_key=True)
+
+class DocumentShare(Base):
+    """Modèle partage de document"""
+    __tablename__ = "document_shares"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    document_id = Column(Integer, ForeignKey("documents.id"), nullable=False)
+    owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    shared_with = Column(Integer, ForeignKey("users.id"), nullable=False)
+    permissions = Column(Text, nullable=False)  # JSON string ["read", "write", "comment"]
+    expires_at = Column(DateTime, nullable=True)
+    message = Column(Text, nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    revoked_at = Column(DateTime, nullable=True)
+    
+    # Relations
+    document = relationship("Document", back_populates="shares")
+    owner = relationship("User", foreign_keys=[owner_id])
+    shared_user = relationship("User", foreign_keys=[shared_with])
 
 # Créer les tables
 def create_tables():

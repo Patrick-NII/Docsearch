@@ -17,6 +17,8 @@ from models import get_db, User, Document, ChatHistory
 from auth import get_current_user, get_current_active_user, get_current_admin_user
 from auth_routes import router as auth_router
 from analytics_routes import router as analytics_router
+from document_management_routes import router as document_management_router
+from advanced_document_routes import router as advanced_document_router
 
 # Configuration du logging
 logging.basicConfig(level=getattr(logging, settings.LOG_LEVEL))
@@ -43,6 +45,12 @@ app.include_router(auth_router)
 
 # Inclure les routes d'analytics
 app.include_router(analytics_router)
+
+# Inclure les routes de gestion avancée des documents
+app.include_router(document_management_router)
+
+# Inclure les routes de gestion avancée des documents (versioning, annotations, partage)
+app.include_router(advanced_document_router)
 
 # Variables globales pour les instances
 document_loader = None
@@ -356,7 +364,7 @@ async def get_chat_history(
                 "question": entry.question,
                 "answer": entry.answer,
                 "timestamp": entry.created_at.isoformat(),
-                "session_id": entry.session_id
+                "session_id": entry.session_id if entry.session_id is not None else "Permanent"
             })
         
         return ChatHistoryResponse(history=history)

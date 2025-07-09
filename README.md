@@ -139,6 +139,43 @@ python create_initial_users.py
 - `PUT /auth/users/{user_id}/toggle-status` - Activer/désactiver un utilisateur
 - `PUT /auth/users/{user_id}/toggle-admin` - Donner/retirer les droits admin
 
+### Endpoints de Gestion Avancée des Documents
+
+#### Versioning
+- `GET /documents/advanced/{document_id}/versions` - Liste des versions d'un document
+- `GET /documents/advanced/versions/{version_id}` - Récupérer une version spécifique
+- `POST /documents/advanced/versions/compare` - Comparer deux versions
+- `POST /documents/advanced/versions/{version_id}/restore` - Restaurer une version
+- `DELETE /documents/advanced/versions/{version_id}` - Supprimer une version
+- `GET /documents/advanced/{document_id}/versions/statistics` - Statistiques des versions
+
+#### Annotations
+- `POST /documents/advanced/{document_id}/annotations` - Créer une annotation
+- `GET /documents/advanced/{document_id}/annotations` - Liste des annotations
+- `GET /documents/advanced/annotations/{annotation_id}` - Récupérer une annotation
+- `PUT /documents/advanced/annotations/{annotation_id}` - Mettre à jour une annotation
+- `DELETE /documents/advanced/annotations/{annotation_id}` - Supprimer une annotation
+- `GET /documents/advanced/annotations/search` - Rechercher dans les annotations
+- `GET /documents/advanced/annotations/statistics` - Statistiques des annotations
+
+#### Tags
+- `POST /documents/advanced/tags` - Créer un tag
+- `GET /documents/advanced/tags` - Liste de tous les tags
+- `GET /documents/advanced/tags/{tag_id}` - Récupérer un tag
+- `PUT /documents/advanced/tags/{tag_id}` - Mettre à jour un tag
+- `DELETE /documents/advanced/tags/{tag_id}` - Supprimer un tag
+- `GET /documents/advanced/tags/search` - Rechercher des tags
+- `GET /documents/advanced/tags/statistics` - Statistiques des tags
+
+#### Partage
+- `POST /documents/advanced/{document_id}/share` - Partager un document
+- `GET /documents/advanced/shared` - Documents partagés
+- `GET /documents/advanced/shares/{share_id}` - Détails d'un partage
+- `PUT /documents/advanced/shares/{share_id}/permissions` - Mettre à jour les permissions
+- `PUT /documents/advanced/shares/{share_id}/extend` - Prolonger l'expiration
+- `DELETE /documents/advanced/shares/{share_id}` - Révoquer un partage
+- `GET /documents/advanced/shares/statistics` - Statistiques des partages
+
 ### Utilisation avec l'API
 
 ```bash
@@ -248,6 +285,35 @@ python test_auth_integration.py
   - Questions les plus fréquentes
   - Sessions les plus actives
   - Tendances d'utilisation
+
+### ✅ **ÉTAPE 5 : Gestion Avancée des Documents**
+
+- **📚 Versioning des Documents**
+  - Historique complet des versions de documents
+  - Comparaison entre versions avec analyse des différences
+  - Restauration de versions précédentes
+  - Statistiques de versioning par document
+  - Détection automatique des changements par hash
+
+- **🏷️ Annotations et Tags**
+  - Système d'annotations complet (highlight, comment, note)
+  - Tags personnalisables avec couleurs
+  - Recherche avancée dans les annotations
+  - Statistiques d'utilisation des annotations
+  - Positionnement précis dans les documents
+
+- **📤 Partage de Documents**
+  - Partage sécurisé entre utilisateurs
+  - Permissions granulaires (read, write, comment, share)
+  - Expiration automatique des partages
+  - Gestion des partages actifs et expirés
+  - Statistiques de partage par utilisateur
+
+- **🔍 Fonctionnalités Avancées**
+  - API REST complète pour toutes les fonctionnalités
+  - Gestion des permissions et sécurité
+  - Statistiques détaillées et métriques
+  - Nettoyage automatique des données expirées
 
 ### Gestion des Sessions
 - Chaque upload de document crée une nouvelle session
@@ -379,4 +445,13 @@ Pour toute question ou problème :
 ---
 
 **DocSearch AI** - Transformez vos documents en connaissances intelligentes ! 🚀
+
+## [CORRECTIFS JUILLET 2024]
+
+- Correction d'un bug sur l'API `/history` : le champ `session_id` est toujours une string ("Permanent" si None), ce qui évite les erreurs 500 côté frontend.
+- Suppression du warning LangChain en utilisant `.chain.invoke({...})` au lieu de `.chain({...})` dans `rag_chain.py`.
+- Création du dossier `frontend/src/app` pour la compatibilité Next.js 13+ (App Router).
+- Création du dossier `frontend/public/katiopa/images` pour éviter les erreurs 404 sur les images statiques. Ajouter les images nécessaires dans ce dossier.
+
+**Pensez à redémarrer le backend et le frontend après ces corrections.**
 
