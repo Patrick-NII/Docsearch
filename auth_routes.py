@@ -71,6 +71,12 @@ def login(user_credentials: UserLogin, db: Session = Depends(get_db)):
                 detail="Compte utilisateur inactif"
             )
         
+        # Mettre à jour la date de dernière connexion
+        from datetime import datetime
+        user.last_login = datetime.utcnow()
+        db.commit()
+        db.refresh(user)
+        
         # Créer le token d'accès
         access_token_expires = timedelta(minutes=30)
         access_token = AuthManager.create_access_token(
