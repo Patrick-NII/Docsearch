@@ -1,6 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useAuth } from '../components/AuthContext';
+import { LoginForm } from '../components/LoginForm';
+import { RegisterForm } from '../components/RegisterForm';
+import { UserProfile } from '../components/UserProfile';
+import { ProtectedRoute } from '../components/ProtectedRoute';
 import axios from 'axios';
 
 interface ConversationEntry {
@@ -13,6 +18,8 @@ interface ConversationEntry {
 }
 
 export default function Home() {
+  const { user, isAuthenticated, isLoading } = useAuth();
+  const [showRegister, setShowRegister] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState('');
@@ -25,8 +32,15 @@ export default function Home() {
   const [conversationHistory, setConversationHistory] = useState<ConversationEntry[]>([]);
   const [showHistory, setShowHistory] = useState(true);
 
-  const API_URL = 'http://localhost:8000';
-  const API_TOKEN = 'dev-secret-token'; // À synchroniser avec ton .env backend
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+  // Charger les données au démarrage si authentifié
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadAvailableDocuments();
+      loadChatHistory();
+    }
+  }, [isAuthenticated]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -48,12 +62,7 @@ export default function Home() {
     formData.append('files', file);
 
     try {
-      const response = await axios.post(`${API_URL}/upload`, formData, {
-        headers: {
-          'Authorization': `Bearer ${API_TOKEN}`,
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+      const response = await axios.post(`${API_URL}/upload`, formData);
       
       setUploadStatus(`✅ ${response.data.documents_processed} document(s) traité(s) avec succès`);
       setAnswer('');
@@ -84,13 +93,7 @@ export default function Home() {
     try {
       const response = await axios.post(
         `${API_URL}/ask`,
-        { question },
-        {
-          headers: {
-            'Authorization': `Bearer ${API_TOKEN}`,
-            'Content-Type': 'application/json',
-          },
-        }
+        { question }
       );
 
       const newAnswer = response.data.answer;
@@ -135,11 +138,7 @@ export default function Home() {
 
   const loadAvailableDocuments = async () => {
     try {
-      const response = await axios.get(`${API_URL}/documents`, {
-        headers: {
-          'Authorization': `Bearer ${API_TOKEN}`,
-        },
-      });
+      const response = await axios.get(`${API_URL}/documents`);
       setAvailableDocuments(response.data.documents || []);
     } catch (error) {
       console.error('Erreur lors du chargement des documents:', error);
@@ -148,11 +147,7 @@ export default function Home() {
 
   const loadChatHistory = async () => {
     try {
-      const response = await axios.get(`${API_URL}/history`, {
-        headers: {
-          'Authorization': `Bearer ${API_TOKEN}`,
-        },
-      });
+      const response = await axios.get(`${API_URL}/history`);
       
       // Convertir l'historique du backend en format frontend
       const backendHistory = response.data.history || [];
@@ -173,11 +168,7 @@ export default function Home() {
 
   const clearCurrentSession = async () => {
     try {
-      await axios.delete(`${API_URL}/session`, {
-        headers: {
-          'Authorization': `Bearer ${API_TOKEN}`,
-        },
-      });
+      await axios.delete(`${API_URL}/session`);
       setSessionId(null);
       setContext('');
       setAnswer('');
@@ -191,11 +182,7 @@ export default function Home() {
 
   const clearConversationHistory = async () => {
     try {
-      await axios.delete(`${API_URL}/history`, {
-        headers: {
-          'Authorization': `Bearer ${API_TOKEN}`,
-        },
-      });
+      await axios.delete(`${API_URL}/history`);
       setConversationHistory([]);
       setAnswer('');
       setSources([]);
@@ -213,251 +200,262 @@ export default function Home() {
 
   const formatTimestamp = (timestamp: Date) => {
     return timestamp.toLocaleString('fr-FR', {
-      hour: '2-digit',
-      minute: '2-digit',
       day: '2-digit',
       month: '2-digit',
-      year: 'numeric'
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
     });
   };
 
-  // Charger les documents et l'historique au démarrage
-  useEffect(() => {
-    loadAvailableDocuments();
-    loadChatHistory();
-  }, []);
+  // Afficher les formulaires d'authentification si non connecté
+  if (!isAuthenticated && !isLoading) {
+    return showRegister ? (
+      <RegisterForm onSwitchToLogin={() => setShowRegister(false)} />
+    ) : (
+      <LoginForm onSwitchToRegister={() => setShowRegister(true)} />
+    );
+  }
 
+  // Afficher le chargement
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Chargement...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Interface principale (utilisateur authentifié)
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-6xl mx-auto px-4">
-        <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            🧠 DocSearch AI
-          </h1>
-          <p className="text-gray-600 mb-6">
-            Assistant IA pour analyser vos documents et répondre à vos questions
-          </p>
+    <ProtectedRoute>
+      <div className="min-h-screen bg-gray-50">
+        {/* Header */}
+        <header className="bg-white shadow-sm border-b border-gray-200">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center h-16">
+              <div className="flex items-center">
+                <h1 className="text-xl font-semibold text-gray-900">
+                  DocSearch AI
+                </h1>
+                {user?.is_admin && (
+                  <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+                    Admin
+                  </span>
+                )}
+              </div>
+              <UserProfile />
+            </div>
+          </div>
+        </header>
 
-          {/* Indicateur de contexte */}
-          {context && (
-            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="font-medium text-blue-900">
-                    📋 Contexte actuel: 
-                  </span>
-                  <span className="ml-2 text-blue-700">
-                    {context === 'current_session' ? 'Document uploadé récemment' : 
-                     context === 'all_documents' ? 'Tous les documents en base' : 
-                     context === 'document_listing' ? 'Liste des documents' : context}
-                  </span>
-                </div>
-                <div className="flex gap-2">
+        {/* Main Content */}
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Sidebar */}
+            <div className="lg:col-span-1">
+              <div className="bg-white rounded-lg shadow p-6">
+                <h2 className="text-lg font-medium text-gray-900 mb-4">
+                  Upload de Documents
+                </h2>
+                
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Sélectionner un fichier
+                    </label>
+                    <input
+                      type="file"
+                      onChange={handleFileChange}
+                      accept=".pdf,.docx,.txt,.jpg,.jpeg,.png"
+                      className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                    />
+                  </div>
+
+                  <button
+                    onClick={handleUpload}
+                    disabled={!file || loading}
+                    className="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {loading ? 'Upload...' : 'Uploader'}
+                  </button>
+
+                  {uploadStatus && (
+                    <div className="text-sm text-gray-600">
+                      {uploadStatus}
+                    </div>
+                  )}
+
                   {sessionId && (
                     <button
                       onClick={clearCurrentSession}
-                      className="px-3 py-1 bg-red-100 text-red-700 rounded text-sm hover:bg-red-200"
+                      className="w-full bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700"
                     >
-                      🗑️ Effacer session
-                    </button>
-                  )}
-                  <button
-                    onClick={() => setShowHistory(!showHistory)}
-                    className="px-3 py-1 bg-gray-100 text-gray-700 rounded text-sm hover:bg-gray-200"
-                  >
-                    {showHistory ? '📝 Masquer historique' : '📝 Afficher historique'}
-                  </button>
-                  {conversationHistory.length > 0 && (
-                    <button
-                      onClick={clearConversationHistory}
-                      className="px-3 py-1 bg-orange-100 text-orange-700 rounded text-sm hover:bg-orange-200"
-                    >
-                      🗑️ Effacer historique
+                      Effacer la session
                     </button>
                   )}
                 </div>
-              </div>
-            </div>
-          )}
 
-          {/* Section Upload */}
-          <div className="mb-8 p-4 border border-gray-200 rounded-lg">
-            <h2 className="text-xl font-semibold mb-4">📄 Upload de Document</h2>
-            <div className="flex items-center gap-4">
-              <input
-                type="file"
-                onChange={handleFileChange}
-                accept=".pdf,.txt,.docx,.doc,.xlsx,.xls,.csv,.png,.jpg,.jpeg,.gif,.bmp,.tiff"
-                className="flex-1 p-2 border border-gray-300 rounded"
-              />
-              <button
-                onClick={handleUpload}
-                disabled={loading || !file}
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-              >
-                {loading ? '⏳ Upload...' : '📤 Uploader'}
-              </button>
-            </div>
-            {uploadStatus && (
-              <p className={`mt-2 text-sm ${uploadStatus.includes('✅') ? 'text-green-600' : 'text-red-600'}`}>
-                {uploadStatus}
-              </p>
-            )}
-          </div>
-
-          {/* Section Documents Disponibles */}
-          {availableDocuments.length > 0 && (
-            <div className="mb-8 p-4 border border-gray-200 rounded-lg">
-              <h2 className="text-xl font-semibold mb-4">📚 Documents Disponibles</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {availableDocuments.map((doc, index) => (
-                  <div key={index} className="bg-gray-50 p-3 rounded border">
-                    <div className="font-medium text-gray-900">
-                      📄 {doc.filename}
-                    </div>
-                    <div className="text-sm text-gray-600">
-                      Type: {doc.file_type} • Segments: {doc.chunks_count}
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      {doc.session_id === 'Permanent' ? '📚 Permanent' : '📄 Session actuelle'}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Section Question */}
-          <div className="mb-8 p-4 border border-gray-200 rounded-lg">
-            <h2 className="text-xl font-semibold mb-4">🤔 Poser une Question</h2>
-            <div className="flex gap-4">
-              <input
-                type="text"
-                value={question}
-                onChange={(e) => setQuestion(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder="Posez votre question sur le document..."
-                className="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-              <button
-                onClick={handleAsk}
-                disabled={loading || !question.trim()}
-                className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-              >
-                {loading ? '⏳ Recherche...' : '🔍 Demander'}
-              </button>
-            </div>
-          </div>
-
-          {/* Section Historique des Conversations */}
-          {showHistory && conversationHistory.length > 0 && (
-            <div className="mb-8 p-4 border border-gray-200 rounded-lg">
-              <h2 className="text-xl font-semibold mb-4">💬 Historique des Conversations</h2>
-              <div className="space-y-4 max-h-96 overflow-y-auto">
-                {conversationHistory.map((entry) => (
-                  <div key={entry.id} className="bg-gray-50 p-4 rounded-lg border">
-                    <div className="flex justify-between items-start mb-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-gray-500">
-                          {formatTimestamp(entry.timestamp)}
-                        </span>
-                        <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                          {entry.context === 'current_session' ? 'Session' : 
-                           entry.context === 'all_documents' ? 'Tous' : 
-                           entry.context === 'document_listing' ? 'Liste' : entry.context}
-                        </span>
-                      </div>
-                    </div>
-                    
-                    <div className="mb-3">
-                      <div className="font-medium text-gray-900 mb-1">
-                        🤔 Question:
-                      </div>
-                      <div className="text-gray-700 bg-white p-2 rounded border">
-                        {entry.question}
-                      </div>
-                    </div>
-                    
-                    <div className="mb-3">
-                      <div className="font-medium text-gray-900 mb-1">
-                        💬 Réponse:
-                      </div>
-                      <div className="text-gray-700 bg-white p-2 rounded border whitespace-pre-wrap">
-                        {entry.answer}
-                      </div>
-                    </div>
-
-                    {/* Sources */}
-                    {entry.sources && entry.sources.length > 0 && (
-                      <div>
-                        <div className="font-medium text-gray-900 mb-2">
-                          📚 Sources ({entry.sources.length}):
-                        </div>
-                        <div className="space-y-2">
-                          {entry.sources.map((source, index) => (
-                            <div key={index} className="bg-blue-50 p-2 rounded border-l-2 border-blue-400">
-                              <div className="text-sm font-medium text-blue-900">
-                                📄 {source.filename} ({source.file_type})
-                              </div>
-                              <div className="text-xs text-blue-700 mt-1">
-                                {source.text?.slice(0, 150)}...
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Section Réponse Actuelle (si pas d'historique affiché) */}
-          {answer && !showHistory && (
-            <div className="p-4 border border-gray-200 rounded-lg">
-              <h2 className="text-xl font-semibold mb-4">💬 Réponse</h2>
-              <div className="bg-gray-50 p-4 rounded-lg mb-4">
-                <p className="text-gray-800 whitespace-pre-wrap">{answer}</p>
-              </div>
-
-              {/* Sources */}
-              {sources.length > 0 && (
-                <div>
-                  <h3 className="text-lg font-semibold mb-3">📚 Sources</h3>
+                <div className="mt-6">
+                  <h3 className="text-sm font-medium text-gray-900 mb-2">
+                    Documents disponibles
+                  </h3>
                   <div className="space-y-2">
-                    {sources.map((source, index) => (
-                      <div key={index} className="bg-blue-50 p-3 rounded-lg border-l-4 border-blue-400">
-                        <div className="font-medium text-blue-900">
-                          📄 {source.filename} ({source.file_type})
-                        </div>
-                        <div className="text-sm text-blue-700 mt-1">
-                          {source.text?.slice(0, 200)}...
-                        </div>
+                    {availableDocuments.map((doc, index) => (
+                      <div key={index} className="text-xs text-gray-600 p-2 bg-gray-50 rounded">
+                        <div className="font-medium">{doc.filename}</div>
+                        <div>{doc.file_type} • {doc.chunks_count} segments</div>
+                        {doc.session_id && (
+                          <div className="text-indigo-600">Session actuelle</div>
+                        )}
                       </div>
                     ))}
                   </div>
                 </div>
-              )}
+              </div>
             </div>
-          )}
-        </div>
 
-        {/* Instructions */}
-        <div className="bg-blue-50 rounded-lg p-4">
-          <h3 className="font-semibold text-blue-900 mb-2">📋 Instructions</h3>
-          <ul className="text-sm text-blue-800 space-y-1">
-            <li>• Upload un document pour créer une session de travail</li>
-            <li>• Posez une question en langage naturel</li>
-            <li>• L'IA utilisera automatiquement le document uploadé</li>
-            <li>• L'historique des conversations est conservé en mémoire</li>
-            <li>• Demandez "quels documents sont disponibles ?" pour voir la base</li>
-            <li>• Appuyez sur Entrée pour poser la question</li>
-            <li>• Utilisez "Effacer session" pour supprimer les documents récents</li>
-            <li>• Utilisez "Effacer historique" pour supprimer la mémoire conversationnelle</li>
-          </ul>
-        </div>
+            {/* Chat Area */}
+            <div className="lg:col-span-2">
+              <div className="bg-white rounded-lg shadow">
+                {/* Chat Header */}
+                <div className="border-b border-gray-200 p-4">
+                  <div className="flex justify-between items-center">
+                    <h2 className="text-lg font-medium text-gray-900">
+                      Assistant IA
+                    </h2>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => setShowHistory(!showHistory)}
+                        className="text-sm text-indigo-600 hover:text-indigo-500"
+                      >
+                        {showHistory ? 'Masquer' : 'Afficher'} l'historique
+                      </button>
+                      <button
+                        onClick={clearConversationHistory}
+                        className="text-sm text-red-600 hover:text-red-500"
+                      >
+                        Effacer l'historique
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Chat Messages */}
+                <div className="h-96 overflow-y-auto p-4">
+                  {showHistory && conversationHistory.length > 0 && (
+                    <div className="space-y-4 mb-4">
+                      {conversationHistory.map((entry) => (
+                        <div key={entry.id} className="space-y-2">
+                          <div className="flex items-start space-x-3">
+                            <div className="flex-shrink-0 w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center">
+                              <span className="text-indigo-600 text-sm font-medium">U</span>
+                            </div>
+                            <div className="flex-1">
+                              <div className="bg-gray-100 rounded-lg p-3">
+                                <p className="text-sm text-gray-900">{entry.question}</p>
+                                <p className="text-xs text-gray-500 mt-1">
+                                  {formatTimestamp(entry.timestamp)}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-start space-x-3">
+                            <div className="flex-shrink-0 w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                              <span className="text-green-600 text-sm font-medium">AI</span>
+                            </div>
+                            <div className="flex-1">
+                              <div className="bg-green-50 rounded-lg p-3">
+                                <p className="text-sm text-gray-900 whitespace-pre-wrap">{entry.answer}</p>
+                                {entry.sources && entry.sources.length > 0 && (
+                                  <div className="mt-2">
+                                    <p className="text-xs text-gray-500 font-medium">Sources :</p>
+                                    <div className="space-y-1">
+                                      {entry.sources.map((source, idx) => (
+                                        <div key={idx} className="text-xs text-gray-600 bg-white p-2 rounded">
+                                          <div className="font-medium">{source.filename}</div>
+                                          <div className="text-gray-500">{source.text.substring(0, 100)}...</div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Current Answer */}
+                  {answer && (
+                    <div className="space-y-2">
+                      <div className="flex items-start space-x-3">
+                        <div className="flex-shrink-0 w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                          <span className="text-green-600 text-sm font-medium">AI</span>
+                        </div>
+                        <div className="flex-1">
+                          <div className="bg-green-50 rounded-lg p-3">
+                            <p className="text-sm text-gray-900 whitespace-pre-wrap">{answer}</p>
+                            {sources && sources.length > 0 && (
+                              <div className="mt-2">
+                                <p className="text-xs text-gray-500 font-medium">Sources :</p>
+                                <div className="space-y-1">
+                                  {sources.map((source, idx) => (
+                                    <div key={idx} className="text-xs text-gray-600 bg-white p-2 rounded">
+                                      <div className="font-medium">{source.filename}</div>
+                                      <div className="text-gray-500">{source.text.substring(0, 100)}...</div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {loading && (
+                    <div className="flex items-center space-x-2 text-gray-500">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-600"></div>
+                      <span className="text-sm">L'assistant réfléchit...</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Input Area */}
+                <div className="border-t border-gray-200 p-4">
+                  <div className="flex space-x-4">
+                    <div className="flex-1">
+                      <textarea
+                        value={question}
+                        onChange={(e) => setQuestion(e.target.value)}
+                        onKeyPress={handleKeyPress}
+                        placeholder="Posez votre question ici..."
+                        className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
+                        rows={3}
+                      />
+                    </div>
+                    <button
+                      onClick={handleAsk}
+                      disabled={!question.trim() || loading}
+                      className="bg-indigo-600 text-white px-6 py-2 rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Envoyer
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
       </div>
-    </div>
+    </ProtectedRoute>
   );
 }
