@@ -303,8 +303,8 @@ class ModernRAGChain:
             result = self.chain.invoke({"question": question})
             
             # Extraire la réponse et les sources
-            answer = result.content
-            source_documents = result.source_documents
+            answer = result.get("answer", "")
+            source_documents = result.get("source_documents", [])
             
             # Formater les sources
             sources = []
